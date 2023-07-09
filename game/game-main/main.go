@@ -153,7 +153,7 @@ func cleanup() {
 
 	err := cookedTerm.Run()
 	if err != nil {
-		log.Fatalln("unable to restore cooked mode", err)
+		log.Fatalln("unable to restore cooked mode!!", err)
 	}
 }
 
