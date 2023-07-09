@@ -142,7 +142,7 @@ func initialise() {
 
 	err := cbTerm.Run()
 	if err != nil {
-		log.Fatalln("unble to activate cbreak mode!", err)
+		log.Fatalln("unble to activate cbreak mode!!!", err)
 	}
 }
 
@@ -153,7 +153,7 @@ func cleanup() {
 
 	err := cookedTerm.Run()
 	if err != nil {
-		log.Fatalln("unable to restore cooked mode!!", err)
+		log.Fatalln("unable to restore cooked mode!!!!", err)
 	}
 }
 
