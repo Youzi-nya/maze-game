@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/danicat/simpleansi"
 )
@@ -13,11 +15,16 @@ import (
 // 变量结构体的定义
 var maze []string
 var player sprite
+var ghosts []*sprite
 
 type sprite struct {
 	row int
 	col int
 }
+
+var score int
+var numDots int
+var lives = 1
 
 // 读取迷宫文件
 func loadMaze(file string) error {
@@ -33,12 +40,15 @@ func loadMaze(file string) error {
 		maze = append(maze, line)
 	}
 
-	//获取玩家位置
 	for row, line := range maze {
 		for col, char := range line {
 			switch char {
 			case 'P':
-				player = sprite{row: row, col: col}
+				player = sprite{row, col}
+			case 'G':
+				ghosts = append(ghosts, &sprite{row, col})
+			case '.':
+				numDots++
 			}
 		}
 	}
@@ -112,6 +122,32 @@ func makeMove(oldRow, oldCol int, dir string) (newRow, newCol int) {
 // 角色移动的实现
 func movePlayer(dir string) {
 	player.row, player.col = makeMove(player.row, player.col, dir)
+	switch maze[player.row][player.col] {
+	case '.':
+		numDots--
+		score++
+		maze[player.row] = maze[player.row][0:player.col] + " " + maze[player.row][player.col+1:]
+	}
+}
+
+// 幽灵AI的实现
+func drawDirection() string {
+	dir := rand.Intn(4)
+	move := map[int]string{
+		0: "UP",
+		1: "DOWN",
+		2: "RIGHT",
+		3: "LEFT",
+	}
+	return move[dir]
+}
+
+// 幽灵移动的实现
+func moveghosts() {
+	for _, g := range ghosts {
+		dir := drawDirection()
+		g.row, g.col = makeMove(g.row, g.col, dir)
+	}
 }
 
 // 打印迷宫
@@ -121,6 +157,8 @@ func printScreen() {
 		for _, chr := range line {
 			switch chr {
 			case '#':
+				fallthrough
+			case '.':
 				fmt.Printf("%c", chr)
 			default:
 				fmt.Print(" ")
@@ -128,11 +166,17 @@ func printScreen() {
 		}
 		fmt.Println()
 	}
-
+	//打印角色
 	simpleansi.MoveCursor(player.row, player.col)
 	fmt.Print("P")
-
+	//打印幽灵
+	for _, g := range ghosts {
+		simpleansi.MoveCursor(g.row, g.col)
+		fmt.Print("G")
+	}
+	//鼠标光标移出
 	simpleansi.MoveCursor(len(maze)+1, 0)
+	fmt.Println("Score:", score, "\tLives", lives)
 }
 
 // 启动Cbreak模式
@@ -169,25 +213,55 @@ func main() {
 		log.Println("failed to load maze:", err)
 		return
 	}
+	input := make(chan string)
+	go func(ch chan<- string) {
+		for {
+			input, err := readInput()
+			if err != nil {
+				log.Println("error reading input", err)
+				ch <- "ESC"
+			}
+			ch <- input
+		}
+	}(input)
 
 	//游戏循环
 	for {
+
+		//输入
+		// input, err := readInput()
+		// if err != nil {
+		// 	log.Println("error reading input:", err)
+		// 	break
+		// }
+
+		//移动角色
+		select {
+		case inp := <-input:
+			if inp == "ESC" {
+				lives = 0
+			}
+			movePlayer(inp)
+		default:
+		}
+		//幽灵移动
+		moveghosts()
+
+		//游戏结束
+		for _, g := range ghosts {
+			if player == *g {
+				lives--
+			}
+		}
 		//更新屏幕
 		printScreen()
 
-		//输入
-		input, err := readInput()
-		if err != nil {
-			log.Println("error reading input:", err)
-			break
-		}
-
-		//移动角色
-		movePlayer(input)
-
 		//退出游戏
-		if input == "ESC" {
+		if numDots == 0 || lives <= 0 {
 			break
 		}
+
+		//游戏延时
+		time.Sleep(100 * time.Millisecond)
 	}
 }
