@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -14,6 +15,10 @@ import (
 )
 
 // 变量结构体的定义
+var (
+	configFile = flag.String("config-file", "config.json", "path to custom configuration file")
+	mazeFile   = flag.String("maze-file", "maze01.txt", "path to a custom maze file")
+)
 var maze []string
 var player sprite
 var ghosts []*sprite
@@ -251,19 +256,20 @@ func cleanup() {
 
 // 主函数
 func main() {
+	flag.Parse()
 	//启动cbreak模式
 	initialise()
 	defer cleanup()
 
 	//读取文件
-	err := loadMaze("maze01.txt")
+	err := loadMaze(*mazeFile)
 	if err != nil {
 		log.Println("failed to load maze:", err)
 		return
 	}
 
 	//解析json
-	err = loadConfig("config.json")
+	err = loadConfig(*configFile)
 	if err != nil {
 		log.Println("failed to load configuration:", err)
 	}
