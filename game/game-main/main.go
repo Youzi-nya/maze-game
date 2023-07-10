@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -21,10 +22,48 @@ type sprite struct {
 	row int
 	col int
 }
+type config struct {
+	Player   string `json:"player"`
+	Ghost    string `json:"ghost"`
+	Wall     string `json:"wall"`
+	Dot      string `json:"dot"`
+	Pill     string `json:"pill"`
+	Death    string `json:"death"`
+	Space    string `json:"space"`
+	UseEmoji bool   `json:"use_emoji"`
+}
 
 var score int
 var numDots int
 var lives = 1
+
+var cfg config
+
+// 读入config解码json
+func loadConfig(file string) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	err = decoder.Decode(&cfg)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// 调整水平位移
+func moveCursor(row, col int) {
+	if cfg.UseEmoji {
+		simpleansi.MoveCursor(row, col*2)
+	} else {
+		simpleansi.MoveCursor(row, col)
+	}
+}
 
 // 读取迷宫文件
 func loadMaze(file string) error {
@@ -44,9 +83,9 @@ func loadMaze(file string) error {
 		for col, char := range line {
 			switch char {
 			case 'P':
-				player = sprite{row, col}
+				player = sprite{row: row, col: col}
 			case 'G':
-				ghosts = append(ghosts, &sprite{row, col})
+				ghosts = append(ghosts, &sprite{row: row, col: col})
 			case '.':
 				numDots++
 			}
@@ -122,10 +161,17 @@ func makeMove(oldRow, oldCol int, dir string) (newRow, newCol int) {
 // 角色移动的实现
 func movePlayer(dir string) {
 	player.row, player.col = makeMove(player.row, player.col, dir)
+
+	// removeDot := func(row, col int){
+
+	// }
 	switch maze[player.row][player.col] {
 	case '.':
 		numDots--
 		score++
+		maze[player.row] = maze[player.row][0:player.col] + " " + maze[player.row][player.col+1:]
+	case 'X':
+		score += 10
 		maze[player.row] = maze[player.row][0:player.col] + " " + maze[player.row][player.col+1:]
 	}
 }
@@ -157,25 +203,27 @@ func printScreen() {
 		for _, chr := range line {
 			switch chr {
 			case '#':
-				fallthrough
+				fmt.Print(simpleansi.WithBlueBackground(cfg.Wall))
 			case '.':
-				fmt.Printf("%c", chr)
+				fmt.Print(cfg.Dot)
+			case 'X':
+				fmt.Print(cfg.Pill)
 			default:
-				fmt.Print(" ")
+				fmt.Print(cfg.Space)
 			}
 		}
 		fmt.Println()
 	}
 	//打印角色
-	simpleansi.MoveCursor(player.row, player.col)
-	fmt.Print("P")
+	moveCursor(player.row, player.col)
+	fmt.Print(cfg.Player)
 	//打印幽灵
 	for _, g := range ghosts {
-		simpleansi.MoveCursor(g.row, g.col)
-		fmt.Print("G")
+		moveCursor(g.row, g.col)
+		fmt.Print(cfg.Ghost)
 	}
 	//鼠标光标移出
-	simpleansi.MoveCursor(len(maze)+1, 0)
+	moveCursor(len(maze)+1, 0)
 	fmt.Println("Score:", score, "\tLives", lives)
 }
 
@@ -213,6 +261,14 @@ func main() {
 		log.Println("failed to load maze:", err)
 		return
 	}
+
+	//解析json
+	err = loadConfig("config.json")
+	if err != nil {
+		log.Println("failed to load configuration:", err)
+	}
+
+	//输入
 	input := make(chan string)
 	go func(ch chan<- string) {
 		for {
@@ -227,13 +283,6 @@ func main() {
 
 	//游戏循环
 	for {
-
-		//输入
-		// input, err := readInput()
-		// if err != nil {
-		// 	log.Println("error reading input:", err)
-		// 	break
-		// }
 
 		//移动角色
 		select {
@@ -258,6 +307,11 @@ func main() {
 
 		//退出游戏
 		if numDots == 0 || lives <= 0 {
+			if lives == 0 {
+				moveCursor(player.row, player.col)
+				fmt.Print(cfg.Death)
+				moveCursor(len(maze)+2, 0)
+			}
 			break
 		}
 
